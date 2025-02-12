@@ -13,9 +13,10 @@ load_dotenv()
 
 # 환경 변수에서 API 키 가져오기
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 
 # ✅ OpenAI GPT 모델 초기화
-chat_model = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+chat_model = ChatOpenAI(model_name="gpt-4o", temperature=0.7)
 
 # ✅ Streamlit UI 설정
 st.set_page_config(page_title="전주대학교 비교과 챗봇", page_icon="🎓", layout="centered")
