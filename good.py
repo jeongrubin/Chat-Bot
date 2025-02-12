@@ -13,7 +13,6 @@ load_dotenv()
 
 # 환경 변수에서 API 키 가져오기
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# OPENAI_API_KEY = "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"
 # ✅ OpenAI GPT 모델 초기화
 chat_model = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
 
