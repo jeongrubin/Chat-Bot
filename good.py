@@ -28,7 +28,7 @@ if "messages" not in st.session_state:
 # ✅ JSON 데이터 로드 함수
 @st.cache_data
 def load_program_data():
-    file_path = "비교과프로그램챗봇\programs.json"
+    file_path = "programs.json"
     try:
         with open(file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
