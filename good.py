@@ -13,10 +13,9 @@ load_dotenv()
 
 # 환경 변수에서 API 키 가져오기
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
-
+# OPENAI_API_KEY = "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"
 # ✅ OpenAI GPT 모델 초기화
-chat_model = ChatOpenAI(model_name="gpt-4o", temperature=0.7)
+chat_model = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
 
 # ✅ Streamlit UI 설정
 st.set_page_config(page_title="전주대학교 비교과 챗봇", page_icon="🎓", layout="centered")
@@ -30,7 +29,7 @@ if "messages" not in st.session_state:
 # ✅ JSON 데이터 로드 함수
 @st.cache_data
 def load_program_data():
-    file_path = "programs.json"
+    file_path = "비교과프로그램챗봇\programs.json"
     try:
         with open(file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
