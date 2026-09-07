@@ -113,7 +113,7 @@ def format_program(program: dict[str, Any]) -> str:
 
 
 def build_fallback_answer(results: list[dict[str, Any]]) -> str:
-    """Return a grounded answer when no OpenAI API key is configured."""
+    """Return a grounded answer without calling an external API."""
     if not results:
         return (
             "등록된 데이터에서 관련 프로그램을 찾지 못했습니다. "
@@ -123,15 +123,15 @@ def build_fallback_answer(results: list[dict[str, Any]]) -> str:
     return f"입력한 조건과 관련성이 높은 프로그램입니다.\n\n{body}"
 
 
-def generate_openai_answer(
+def generate_gemini_answer(
     query: str,
     results: list[dict[str, Any]],
     *,
     api_key: str,
     model: str,
 ) -> str:
-    """Generate a grounded summary from retrieved records using OpenAI."""
-    from openai import OpenAI
+    """Generate a grounded summary from retrieved records using Gemini."""
+    from google import genai
 
     context = json.dumps(results, ensure_ascii=False, indent=2)
     prompt = f"""당신은 대학 비교과 프로그램 안내 도우미입니다.
@@ -144,6 +144,9 @@ def generate_openai_answer(
 검색 결과:
 {context}
 """
-    client = OpenAI(api_key=api_key)
-    response = client.responses.create(model=model, input=prompt)
-    return response.output_text.strip()
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(model=model, contents=prompt)
+    answer = (response.text or "").strip()
+    if not answer:
+        raise RuntimeError("Gemini API가 빈 응답을 반환했습니다.")
+    return answer
