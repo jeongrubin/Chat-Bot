@@ -21,9 +21,40 @@ DATA_PATH = BASE_DIR / "data" / "programs.json"
 load_dotenv(BASE_DIR / ".env")
 
 st.set_page_config(
-    page_title="전주대학교 비교과 프로그램 추천",
+    page_title="비교과 프로그램 AI 검색·추천",
     page_icon="🎓",
     layout="centered",
+)
+
+st.markdown(
+    """
+    <style>
+    .block-container {
+        max-width: 900px;
+        padding-top: 2.5rem;
+        padding-bottom: 5rem;
+    }
+    [data-testid="stChatMessage"] {
+        border: 1px solid rgba(128, 128, 128, 0.18);
+        border-radius: 16px;
+        padding: 0.35rem 0.65rem;
+        margin-bottom: 0.8rem;
+    }
+    [data-testid="stSidebar"] {
+        border-right: 1px solid rgba(128, 128, 128, 0.16);
+    }
+    div[data-testid="stRadio"] > div {
+        gap: 0.75rem;
+    }
+    .hero-copy {
+        color: #64748b;
+        font-size: 1.02rem;
+        line-height: 1.7;
+        margin-bottom: 1.4rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -36,32 +67,53 @@ retriever = get_retriever(str(DATA_PATH))
 api_key = os.getenv("GEMINI_API_KEY", "").strip()
 model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
 
-st.title("🎓 비교과 프로그램 추천 챗봇")
-st.write(
-    "관심 분야, 학년 또는 원하는 혜택을 입력하면 등록된 프로그램 중 "
-    "관련성이 높은 항목을 찾아드립니다."
-)
-st.caption(
-    "포트폴리오용 데모입니다. 데이터는 2025년 수집본이므로 실제 신청 전 "
-    "학교 공식 공지를 확인하세요."
+st.title("🎓 비교과 프로그램 AI 검색·추천")
+st.markdown(
+    '<p class="hero-copy">관심 분야와 학년, 준비 중인 진로를 입력하면 '
+    "등록된 비교과 프로그램을 검색하고 참여 목적에 맞게 안내합니다.</p>",
+    unsafe_allow_html=True,
 )
 
+st.subheader("답변 모드", divider="gray")
+mode_options = ["🔎 무료 로컬 검색"]
+if api_key:
+    mode_options.insert(0, "✨ Gemini AI 추천")
+
+answer_mode = st.radio(
+    "답변 모드 선택",
+    mode_options,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+is_gemini_mode = answer_mode.startswith("✨")
+
+if is_gemini_mode:
+    st.success(
+        f"현재 **Gemini AI 추천 모드**입니다. 검색된 프로그램을 근거로 "
+        f"`{model}`이 추천 이유를 작성합니다."
+    )
+else:
+    st.info(
+        "현재 **무료 로컬 검색 모드**입니다. 외부 AI를 호출하지 않고 "
+        "TF-IDF 유사도로 관련 프로그램을 찾습니다."
+    )
+
 with st.sidebar:
-    st.subheader("답변 방식")
+    st.header("서비스 안내")
+    st.metric("등록 프로그램", f"{len(retriever.programs)}개")
+    st.caption("데이터 기준: 2025년 정적 수집본")
+    st.divider()
+    st.subheader("현재 연결 상태")
     if api_key:
-        answer_mode = st.radio(
-            "모드 선택",
-            ("Gemini AI 모드", "무료 로컬 검색 모드"),
-            help="Gemini 모드는 API 할당량을 사용하고, 로컬 모드는 외부 API를 호출하지 않습니다.",
-        )
-        if answer_mode == "Gemini AI 모드":
-            st.success(f"Gemini 기반 RAG · {model}")
-        else:
-            st.info("TF-IDF 검색 · API 사용 없음")
+        st.success("Gemini API 연결됨")
     else:
-        answer_mode = "무료 로컬 검색 모드"
-        st.info("무료 로컬 검색 모드 · API 키 없이 실행 중")
-        st.caption("운영자가 Gemini API 키를 설정하면 AI 답변 모드가 활성화됩니다.")
+        st.warning("Gemini API 연결 안 됨")
+        st.caption("현재는 무료 로컬 검색만 사용할 수 있습니다.")
+    st.divider()
+    st.caption(
+        "이 서비스는 포트폴리오용 데모입니다. 실제 모집 여부와 신청 기간은 "
+        "학교 공식 공지를 확인하세요."
+    )
     if st.button("대화 초기화", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -70,17 +122,39 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
+    mode = message.get("mode", "local")
+    avatar = "✨" if mode == "gemini" else "🔎"
+    with st.chat_message(message["role"], avatar=avatar if message["role"] == "assistant" else None):
+        if message["role"] == "assistant":
+            label = "Gemini AI 답변" if mode == "gemini" else "로컬 검색 결과"
+            st.caption(label)
         st.markdown(message["content"])
 
-query = st.chat_input("예: 3학년 취업 준비에 도움이 되는 프로그램을 알려줘")
+quick_query = None
+if not st.session_state.messages:
+    st.subheader("이렇게 질문해보세요", divider="gray")
+    examples = (
+        "3학년 취업 준비 프로그램을 추천해줘",
+        "공기업 NCS 준비에 도움이 되는 프로그램이 있어?",
+        "면접 역량을 높일 수 있는 프로그램을 알려줘",
+    )
+    columns = st.columns(3)
+    for index, example in enumerate(examples):
+        if columns[index].button(example, use_container_width=True):
+            quick_query = example
+
+typed_query = st.chat_input("예: 공기업 취업을 준비하는 3학년에게 추천해줘")
+query = typed_query or quick_query
+
 if query:
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
 
     results = retriever.search(query, top_k=3)
-    if answer_mode == "Gemini AI 모드" and api_key and results:
+    response_mode = "gemini" if is_gemini_mode else "local"
+
+    if is_gemini_mode and api_key and results:
         try:
             answer = generate_gemini_answer(
                 query,
@@ -89,6 +163,7 @@ if query:
                 model=model,
             )
         except Exception as error:
+            response_mode = "local"
             answer = (
                 "Gemini 답변 생성 중 오류가 발생해 로컬 검색 결과로 안내합니다.\n\n"
                 + build_fallback_answer(results)
@@ -97,12 +172,17 @@ if query:
     else:
         answer = build_fallback_answer(results)
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
-    with st.chat_message("assistant"):
+    st.session_state.messages.append(
+        {"role": "assistant", "content": answer, "mode": response_mode}
+    )
+    avatar = "✨" if response_mode == "gemini" else "🔎"
+    label = "Gemini AI 답변" if response_mode == "gemini" else "로컬 검색 결과"
+    with st.chat_message("assistant", avatar=avatar):
+        st.caption(label)
         st.markdown(answer)
 
     if results:
-        with st.expander("검색 근거 보기"):
+        with st.expander("추천 근거와 검색 점수 확인"):
             for index, result in enumerate(results, start=1):
                 st.write(
                     f"{index}. {result['제목']} "
