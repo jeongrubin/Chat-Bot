@@ -87,6 +87,19 @@ answer_mode = st.radio(
 )
 is_gemini_mode = answer_mode.startswith("✨")
 
+if "chat_counter" not in st.session_state:
+    st.session_state.chat_counter = 1
+if "conversations" not in st.session_state:
+    previous_messages = st.session_state.pop("messages", [])
+    st.session_state.conversations = {
+        "chat-1": {"title": "새 대화", "messages": previous_messages}
+    }
+if "active_chat_id" not in st.session_state:
+    st.session_state.active_chat_id = "chat-1"
+
+active_chat = st.session_state.conversations[st.session_state.active_chat_id]
+messages = active_chat["messages"]
+
 if is_gemini_mode:
     st.success(
         f"현재 **Gemini AI 추천 모드**입니다. 검색된 프로그램을 근거로 "
@@ -99,7 +112,32 @@ else:
     )
 
 with st.sidebar:
-    st.header("서비스 안내")
+    st.header("대화")
+    if st.button("＋ 새 채팅", type="primary", use_container_width=True):
+        st.session_state.chat_counter += 1
+        new_chat_id = f"chat-{st.session_state.chat_counter}"
+        st.session_state.conversations[new_chat_id] = {
+            "title": "새 대화",
+            "messages": [],
+        }
+        st.session_state.active_chat_id = new_chat_id
+        st.rerun()
+
+    st.caption("대화 목록")
+    for chat_id, conversation in reversed(st.session_state.conversations.items()):
+        is_active = chat_id == st.session_state.active_chat_id
+        if st.button(
+            conversation["title"],
+            key=f"open-{chat_id}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state.active_chat_id = chat_id
+            st.rerun()
+
+    st.caption("대화 목록은 현재 브라우저 접속 동안 유지됩니다.")
+    st.divider()
+    st.subheader("서비스 안내")
     st.metric("등록 프로그램", f"{len(retriever.programs)}개")
     st.caption("데이터 기준: 2025년 정적 수집본")
     st.divider()
@@ -114,14 +152,12 @@ with st.sidebar:
         "이 서비스는 포트폴리오용 데모입니다. 실제 모집 여부와 신청 기간은 "
         "학교 공식 공지를 확인하세요."
     )
-    if st.button("대화 초기화", use_container_width=True):
-        st.session_state.messages = []
+    if st.button("현재 대화 비우기", use_container_width=True):
+        active_chat["messages"] = []
+        active_chat["title"] = "새 대화"
         st.rerun()
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
+for message in messages:
     mode = message.get("mode", "local")
     avatar = "✨" if mode == "gemini" else "🔎"
     with st.chat_message(message["role"], avatar=avatar if message["role"] == "assistant" else None):
@@ -129,9 +165,16 @@ for message in st.session_state.messages:
             label = "Gemini AI 답변" if mode == "gemini" else "로컬 검색 결과"
             st.caption(label)
         st.markdown(message["content"])
+        if message["role"] == "assistant" and message.get("results"):
+            with st.expander("추천 근거와 검색 점수 확인"):
+                for index, result in enumerate(message["results"], start=1):
+                    st.write(
+                        f"{index}. {result['제목']} "
+                        f"(유사도 {result['검색점수']:.3f})"
+                    )
 
 quick_query = None
-if not st.session_state.messages:
+if not messages:
     st.subheader("이렇게 질문해보세요", divider="gray")
     examples = (
         "3학년 취업 준비 프로그램을 추천해줘",
@@ -147,7 +190,9 @@ typed_query = st.chat_input("예: 공기업 취업을 준비하는 3학년에게
 query = typed_query or quick_query
 
 if query:
-    st.session_state.messages.append({"role": "user", "content": query})
+    if active_chat["title"] == "새 대화":
+        active_chat["title"] = query[:24] + ("…" if len(query) > 24 else "")
+    messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
 
@@ -172,19 +217,12 @@ if query:
     else:
         answer = build_fallback_answer(results)
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": answer, "mode": response_mode}
+    messages.append(
+        {
+            "role": "assistant",
+            "content": answer,
+            "mode": response_mode,
+            "results": results,
+        }
     )
-    avatar = "✨" if response_mode == "gemini" else "🔎"
-    label = "Gemini AI 답변" if response_mode == "gemini" else "로컬 검색 결과"
-    with st.chat_message("assistant", avatar=avatar):
-        st.caption(label)
-        st.markdown(answer)
-
-    if results:
-        with st.expander("추천 근거와 검색 점수 확인"):
-            for index, result in enumerate(results, start=1):
-                st.write(
-                    f"{index}. {result['제목']} "
-                    f"(유사도 {result['검색점수']:.3f})"
-                )
+    st.rerun()
