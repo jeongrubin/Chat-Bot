@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from recommender import (
     ProgramRetriever,
     build_fallback_answer,
-    generate_openai_answer,
+    generate_gemini_answer,
     load_programs,
 )
 
@@ -33,8 +33,8 @@ def get_retriever(data_path: str) -> ProgramRetriever:
 
 
 retriever = get_retriever(str(DATA_PATH))
-api_key = os.getenv("OPENAI_API_KEY", "").strip()
-model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+api_key = os.getenv("GEMINI_API_KEY", "").strip()
+model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
 
 st.title("🎓 비교과 프로그램 추천 챗봇")
 st.write(
@@ -47,11 +47,21 @@ st.caption(
 )
 
 with st.sidebar:
-    st.subheader("실행 상태")
+    st.subheader("답변 방식")
     if api_key:
-        st.success(f"AI 답변 모드 · {model}")
+        answer_mode = st.radio(
+            "모드 선택",
+            ("Gemini AI 모드", "무료 로컬 검색 모드"),
+            help="Gemini 모드는 API 할당량을 사용하고, 로컬 모드는 외부 API를 호출하지 않습니다.",
+        )
+        if answer_mode == "Gemini AI 모드":
+            st.success(f"Gemini 기반 RAG · {model}")
+        else:
+            st.info("TF-IDF 검색 · API 사용 없음")
     else:
-        st.info("로컬 검색 모드 · API 키 없이 실행 중")
+        answer_mode = "무료 로컬 검색 모드"
+        st.info("무료 로컬 검색 모드 · API 키 없이 실행 중")
+        st.caption("운영자가 Gemini API 키를 설정하면 AI 답변 모드가 활성화됩니다.")
     if st.button("대화 초기화", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -70,9 +80,9 @@ if query:
         st.markdown(query)
 
     results = retriever.search(query, top_k=3)
-    if api_key and results:
+    if answer_mode == "Gemini AI 모드" and api_key and results:
         try:
-            answer = generate_openai_answer(
+            answer = generate_gemini_answer(
                 query,
                 results,
                 api_key=api_key,
@@ -80,10 +90,10 @@ if query:
             )
         except Exception as error:
             answer = (
-                "AI 답변 생성 중 오류가 발생해 로컬 검색 결과로 안내합니다.\n\n"
+                "Gemini 답변 생성 중 오류가 발생해 로컬 검색 결과로 안내합니다.\n\n"
                 + build_fallback_answer(results)
             )
-            st.toast(f"OpenAI API 오류: {error}", icon="⚠️")
+            st.toast(f"Gemini API 오류: {error}", icon="⚠️")
     else:
         answer = build_fallback_answer(results)
 
