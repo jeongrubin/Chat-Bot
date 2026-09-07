@@ -63,6 +63,12 @@ def get_retriever(data_path: str) -> ProgramRetriever:
     return ProgramRetriever(load_programs(data_path))
 
 
+def make_chat_title(query: str, max_length: int = 24) -> str:
+    """Create a compact conversation title from the first user question."""
+    normalized = " ".join(query.split())
+    return normalized[:max_length] + ("…" if len(normalized) > max_length else "")
+
+
 retriever = get_retriever(str(DATA_PATH))
 api_key = os.getenv("GEMINI_API_KEY", "").strip()
 model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
@@ -96,6 +102,20 @@ if "conversations" not in st.session_state:
     }
 if "active_chat_id" not in st.session_state:
     st.session_state.active_chat_id = "chat-1"
+
+for conversation in st.session_state.conversations.values():
+    if conversation["title"] != "새 대화":
+        continue
+    first_question = next(
+        (
+            message["content"]
+            for message in conversation["messages"]
+            if message.get("role") == "user" and message.get("content")
+        ),
+        None,
+    )
+    if first_question:
+        conversation["title"] = make_chat_title(first_question)
 
 active_chat = st.session_state.conversations[st.session_state.active_chat_id]
 messages = active_chat["messages"]
@@ -191,7 +211,7 @@ query = typed_query or quick_query
 
 if query:
     if active_chat["title"] == "새 대화":
-        active_chat["title"] = query[:24] + ("…" if len(query) > 24 else "")
+        active_chat["title"] = make_chat_title(query)
     messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
