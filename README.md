@@ -1,6 +1,6 @@
 # 전주대학교 비교과 프로그램 추천 챗봇
 
-[웹에서 실행하기](https://jeongrubin-jju-chatbot.streamlit.app/)
+[웹에서 실행하기](https://jeongrubin-chatbot-demo.streamlit.app/)
 
 학교 비교과 프로그램을 검색하고 관련 프로그램을 보여주는 Streamlit 앱입니다. 처음에는 키워드 검색으로 만들었고, 이후 한국어 문자 단위 TF-IDF와 선택형 Gemini 답변 기능을 추가했습니다.
 
